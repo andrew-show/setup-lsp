@@ -1,5 +1,5 @@
 include ./vars.mk
 
-SUBDIRS = src scripts
+subdirs = src scripts
 
 include $(TOPDIR)/rules.mk

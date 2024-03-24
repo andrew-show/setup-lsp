@@ -1,12 +1,11 @@
 include ../vars.mk
 
-PROGRAMS = args-probe
-LIBRARIES = libargs-advise.so
-
-DIST_PROGRAMS = $(PROGRAMS)
-DIST_LIBRARIES = $(LIBRARIES)
+dist_bin = args-probe
+dist_lib = libargs-advise.so
 
 args-probe_SRCS = args-probe.c
+
 libargs-advise.so_SRCS = args-advise.c
+libargs-advise.so_CFLAGS = -fPIC
 
 include $(TOPDIR)/rules.mk

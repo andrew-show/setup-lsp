@@ -30,15 +30,8 @@ else
 # CXX: C++ compiler
 # BUILD_TARGET: The target to build
 
-DIR_TARGET := $(TOPDIR)/build/$(BUILD_TARGET)
-DIR_BIN := $(DIR_TARGET)/bin
-DIR_LIB := $(DIR_TARGET)/lib
-DIR_BUILD := $(DIR_TARGET)/.build
-DIR_DIST := $(if $(DESTDIR), $(DESTDIR), /usr)
-
-DIR_DIST_LIB := $(DIR_DIST)/lib
-DIR_DIST_BIN := $(DIR_DIST)/bin
-DIR_DIST_HEADER := $(DIR_DIST)/include/$(patsubst $(TOPDIR)%,%,$(CURDIR))
+BUILDDIR := $(TOPDIR)/build/$(BUILD_TARGET)
+DESTDIR ?= /usr
 
 # Disable debug and enable optimize by default
 DEBUG ?= no
@@ -48,7 +41,7 @@ OPTIMIZE ?=yes
 # $1: the target program/library
 # $2: list of source pattern
 # $3: target pattern. 
-SRCS_2x = $(addprefix $(DIR_BUILD)/$(1)/,$(foreach i,$(2),$(patsubst $(i),$(3),$(filter $(i),$(SRCS) $($(1)_SRCS)))))
+SRCS_2x = $(addprefix $(BUILDDIR)/.$(1)/,$(foreach i,$(2),$(patsubst $(i),$(3),$(filter $(i),$(SRCS) $($(1)_SRCS)))))
 
 # get object file list from source list
 # $1: the target program/library
@@ -59,10 +52,10 @@ SRCS_o = $(call SRCS_2x,$(1),%.S %.c %.cc %.cpp %.cxx,%.o)
 SRCS_d = $(call SRCS_2x,$(1),%.S %.c %.cc %.cpp %.cxx,%.d)
 
 # get dependency archive file list from source list
-SRCS_a = $(addprefix $(DIR_LIB)/,$(filter %.a,$(SRCS) $($(1)_SRCS)))
+SRCS_a = $(addprefix $(BUILDDIR)/lib/,$(filter %.a,$(SRCS) $($(1)_SRCS)))
 
 # get dependency shared library list from source list
-SRCS_so = $(addprefix $(DIR_LIB)/,$(filter %.so,$(SRCS) $($(1)_SRCS)))
+SRCS_so = $(addprefix $(BUILDDIR)/lib/,$(filter %.so,$(SRCS) $($(1)_SRCS)))
 
 # get cxx files from source list
 SRCS_cxx = $(filter %.cc %.cpp %.cxx,$(SRCS) $($(1)_SRCS))
@@ -133,7 +126,7 @@ CMD_as = $(CC) \
 CMD_ld = $(CC) \
     $(if $(filter 1 y yes on,$(DEBUG)), -g) \
     $(2) \
-    -L$(DIR_LIB) \
+    -L$(BUILDDIR)/lib \
     -o $@ $(call SRCS_o,$(1)) \
     -Wl,--start-group $(call SRCS_a,$(1)) -Wl,--end-group \
     $(call SRCS_so,$(1)) \
@@ -211,16 +204,16 @@ PKGCONF_libs = $(call PARSE_pkgconf_libs,\
 # $1: The program/library name that depends on the %.S
 define S2O_rules
 
-$$(call SRCS_2x,$(1),%.S,%.d) : $$(DIR_BUILD)/$(1)/%.d: %.S
+$$(call SRCS_2x,$(1),%.S,%.d) : $$(BUILDDIR)/.$(1)/%.d: %.S
 	@set -e; mkdir -p $$(@D); rm -f $$@; \
 	$$(call CMD_as,$(1),$$<,$$@); \
-	sed -i 's%\($$*\)\.o[ :]*%$$(DIR_BUILD)/$(1)/\1.o $$@: %g' $$@
+	sed -i 's%\($$*\)\.o[ :]*%$$(BUILDDIR)/.$(1)/\1.o $$@: %g' $$@
 
-$$(call SRCS_2x,$(1),%.S,%.o): $$(DIR_BUILD)/$(1)/%.o: %.S
+$$(call SRCS_2x,$(1),%.S,%.o): $$(BUILDDIR)/.$(1)/%.o: %.S
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_as,$(1),$$<,$$@)),'AS $$(notdir $$@)'); \
 	$$(call CMD_as,$(1),$$<,$$@); \
-	echo cmd_$$@ = $$(call CMD_as,$(1),$$(abspath $$<),$$@) > $$(DIR_BUILD)/$(1)/.$$(@F).cmd 
+	echo cmd_$$@ = $$(call CMD_as,$(1),$$(abspath $$<),$$@) > $$(BUILDDIR)/.$(1)/$$(@F).cmd
 
 endef
 
@@ -230,17 +223,17 @@ endef
 define C2O_rules
 
 # Make dependency
-$$(call SRCS_2x,$(1),%.c,%.d) : $$(DIR_BUILD)/$(1)/%.d: %.c
+$$(call SRCS_2x,$(1),%.c,%.d) : $$(BUILDDIR)/.$(1)/%.d: %.c
 	@set -e; mkdir -p $$(@D); rm -f $$@; \
 	$$(call CMD_cc,$(1),$$<,$$@); \
-	sed -i 's%\($$*\)\.o[ :]*%$$(DIR_BUILD)/$(1)/\1.o $$@: %g' $$@
+	sed -i 's%\($$*\)\.o[ :]*%$$(BUILDDIR)/.$(1)/\1.o $$@: %g' $$@
 
 # Make object files
-$$(call SRCS_2x,$(1),%.c,%.o): $$(DIR_BUILD)/$(1)/%.o: %.c
+$$(call SRCS_2x,$(1),%.c,%.o): $$(BUILDDIR)/.$(1)/%.o: %.c
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_cc,$(1),$$<,$$@)),'CC $$(notdir $$@)'); \
 	$$(call CMD_cc,$(1),$$<,$$@); \
-	echo cmd_$$@ = $$(call CMD_cc,$(1),$$(abspath $$<),$$@) > $$(DIR_BUILD)/$(1)/.$$(@F).cmd
+	echo cmd_$$@ = $$(call CMD_cc,$(1),$$(abspath $$<),$$@) > $$(BUILDDIR)/.$(1)/$$(@F).cmd
 
 endef
 
@@ -251,16 +244,16 @@ endef
 define CXX2O_rules
 
 # Make dependency
-$$(call SRCS_2x,$(1),$(2),%.d): $$(DIR_BUILD)/$(1)/%.d: $(2)
+$$(call SRCS_2x,$(1),$(2),%.d): $$(BUILDDIR)/.$(1)/%.d: $(2)
 	@set -e; mkdir -p $$(@D); rm -f $$@; \
 	$$(call CMD_cxx,$(1),$$<,$$@); \
-	sed -i 's%\($$*\)\.o[ :]*%$$(DIR_BUILD)/$(1)/\1.o $$@: %g' $$@
+	sed -i 's%\($$*\)\.o[ :]*%$$(BUILDDIR)/.$(1)/\1.o $$@: %g' $$@
 
-$$(call SRCS_2x,$(1),$(2),%.o): $$(DIR_BUILD)/$(1)/%.o: $(2)
+$$(call SRCS_2x,$(1),$(2),%.o): $$(BUILDDIR)/.$(1)/%.o: $(2)
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_cxx,$(1),$$<,$$@)),'CXX $$(notdir $$@)'); \
 	$$(call CMD_cxx,$(1),$$<,$$@); \
-	echo cmd_$$@ = $$(call CMD_cxx,$(1),$$(abspath $$<),$$@) > $$(DIR_BUILD)/$(1)/.$$(@F).cmd
+	echo cmd_$$@ = $$(call CMD_cxx,$(1),$$(abspath $$<),$$@) > $$(BUILDDIR)/.$(1)/$$(@F).cmd
 
 endef
 
@@ -297,7 +290,7 @@ $$(eval $$(call CXX2O_rules,$(1),%.cc))
 $$(eval $$(call CXX2O_rules,$(1),%.cpp))
 $$(eval $$(call CXX2O_rules,$(1),%.cxx))
 
-$$(DIR_BIN)/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1))
+$$(BUILDDIR)/bin/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1))
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_ld,$(1))),'LD $$(notdir $$@)'); \
 	$$(call CMD_ld,$(1))
@@ -305,7 +298,7 @@ $$(DIR_BIN)/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1)
 endef
 
 #=============================================================================
-#template to define shared library rules
+# template to define shared library rules
 # $1: The library name
 
 define SHAREDLIB_rules
@@ -316,7 +309,7 @@ $$(eval $$(call C2O_rules,$(1)))
 $$(eval $$(call CXX2O_rules,$(1),%.cc))
 $$(eval $$(call CXX2O_rules,$(1),%.cpp))
 
-$$(DIR_LIB)/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1))
+$$(BUILDDIR)/lib/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1))
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_ld, $(1),-shared)), 'LD $$(notdir $$@)'); \
 	$$(call CMD_ld,$(1),-shared)
@@ -324,7 +317,7 @@ $$(DIR_LIB)/$(1): $$(call SRCS_o,$(1)) $$(call SRCS_a,$(1)) $$(call SRCS_so,$(1)
 endef
 
 #=============================================================================
-#template to define statistics library rules
+# template to define statistics library rules
 # $1: The library name
 
 define ARCHIVE_rules
@@ -335,7 +328,7 @@ $$(eval $$(call C2O_rules,$(1)))
 $$(eval $$(call CXX2O_rules,$(1),%.cc))
 $$(eval $$(call CXX2O_rules,$(1),%.cpp))
 
-$$(DIR_LIB)/$(1): $$(call SRCS_o,$(1))
+$$(BUILDDIR)/lib/$(1): $$(call SRCS_o,$(1))
 	@set -e; mkdir -p $$(@D); \
 	echo $$(if $$(filter 1 y yes on, $$(VERBOSE)),$$(strip $$(call CMD_ar,$(1))),'AR $$(notdir $$@)'); \
 	$$(call CMD_ar,$(1))
@@ -343,7 +336,30 @@ $$(DIR_LIB)/$(1): $$(call SRCS_o,$(1))
 endef
 
 #=============================================================================
-#template to define statistics library rules
+# define all build targets
+
+.PHONY: all
+all: build
+
+SUBDIRS = $(subdirs)
+BUILD_ALL = $(foreach i,$(bin) $(dist_bin),$(call SRCS_d,$(i))) \
+            $(foreach i,$(lib) $(dist_lib),$(call SRCS_d,$(i))) \
+            $(foreach i,$(bin) $(dist_bin),$(call SRCS_o,$(i))) \
+            $(foreach i,$(lib) $(dist_lib),$(call SRCS_o,$(i))) \
+            $(addprefix $(BUILDDIR)/bin/,$(bin) $(dist_bin)) \
+            $(addprefix $(BUILDDIR)/lib/,$(filter %.a %.so,$(lib) $(dist_lib)))
+
+.PHONY: pre-build
+$(SUBDIRS) $(BUILD_ALL): | pre-build
+
+.PHONY: build
+build: $(SUBDIRS) $(BUILD_ALL)
+	@$(MAKE) BUILD_TARGET=$(BUILD_TARGET) post-build
+
+.PHONY: post-build
+
+#=============================================================================
+# template to define statistics library rules
 # $1: The source file name
 # $2: The destination file name
 define DIST_rules
@@ -353,37 +369,20 @@ $(2): $(1)
 	cp -d $(1) $(2)
 endef
 
-.PHONY: all
-all: build
+#=============================================================================
+# define all installation targets
 
-TARGET_DEPENDS = $(foreach i,$(PROGRAMS) $(LIBRARIES),$(call SRCS_d,$(i)))
-TARGET_OBJS = $(foreach i,$(PROGRAMS) $(LIBRARIES),$(call SRCS_o,$(i)))
-TARGET_PROGRAMS = $(addprefix $(DIR_BIN)/,$(PROGRAMS))
-TARGET_ARCHIVES = $(addprefix $(DIR_LIB)/,$(filter %.a,$(LIBRARIES)))
-TARGET_SHAREDLIBS = $(addprefix $(DIR_LIB)/,$(filter %.so,$(LIBRARIES)))
+dist_dirs += bin lib include share
 
-TARGET_ALL = $(TARGET_OBJS) $(TARGET_ARCHIVES) $(TARGET_SHAREDLIBS) $(TARGET_PROGRAMS)
-
-.PHONY: pre-build
-$(SUBDIRS) $(TARGET_ALL): | pre-build
-
-.PHONY: build
-build: $(SUBDIRS) $(TARGET_ALL)
-	@$(MAKE) BUILD_TARGET=$(BUILD_TARGET) post-build
-
-.PHONY: post-build
-
-TARGET_DIST_HEADERS = $(addprefix $(DIR_DIST_HEADER)/, $(DIST_HEADERS))
-TARGET_DIST_LIBRARIES = $(addprefix $(DIR_DIST_LIB)/, $(DIST_LIBRARIES))
-TARGET_DIST_PROGRAMS = $(addprefix $(DIR_DIST_BIN)/, $(DIST_PROGRAMS))
-
-TARGET_DIST_ALL = $(TARGET_DIST_HEADERS) $(TARGET_DIST_LIBRARIES) $(TARGET_DIST_PROGRAMS)
+DIST_ALL = $(addprefix $(DESTDIR)/bin/,$(dist_bin)) \
+           $(addprefix $(DESTDIR)/lib/,$(dist_lib)) \
+           $(foreach i,$(dist_dirs), $(addprefix $(DESTDIR)/$(i)/, $($(i)_SRCS)))
 
 .PHONY: pre-install
-$(TARGET_DIST_ALL): |pre-install
+$(DIST_ALL): |pre-install
 
 .PHONY: install
-install: $(SUBDIRS) $(TARGET_DIST_ALL)
+install: $(SUBDIRS) $(DIST_ALL)
 	@$(MAKE) BUILD_TARGET=$(BUILD_TARGET) post-install
 
 .PHONY: post-install
@@ -394,20 +393,24 @@ $(SUBDIRS):
 
 .PHONY: clean
 clean: $(SUBDIRS)
-	@set -e; echo -n -e rm $(patsubst $(TOPDIR)%,%,$(TARGET_ALL)); \
-	rm -f $(TARGET_ALL)
+
+ifneq ($(strip $(BUILD_ALL)),)
+clean:
+	@set -e; echo rm $(patsubst $(TOPDIR)/%,%,$(BUILD_ALL)); \
+	rm -f $(BUILD_ALL)
+endif
 
 ifneq ($(MAKECMDGOALS),clean)
 
-$(foreach i,$(PROGRAMS),$(eval $(call PROGRAM_rules,$(i))))
-$(foreach i,$(filter %.so,$(LIBRARIES)),$(eval $(call SHAREDLIB_rules,$(i))))
-$(foreach i,$(filter %.a,$(LIBRARIES)),$(eval $(call ARCHIVE_rules,$(i))))
+$(foreach i,$(bin) $(dist_bin),$(eval $(call PROGRAM_rules,$(i))))
+$(foreach i,$(filter %.so,$(lib) $(dist_lib)),$(eval $(call SHAREDLIB_rules,$(i))))
+$(foreach i,$(filter %.a,$(lib) $(dist_lib)),$(eval $(call ARCHIVE_rules,$(i))))
 
-$(foreach i,$(DIST_HEADERS),$(eval $(call DIST_rules,$(i),$(DIR_DIST_HEADER)/$(i))))
-$(foreach i,$(DIST_LIBRARIES),$(eval $(call DIST_rules,$(DIR_LIB)/$(i),$(DIR_DIST_LIB)/$(i))))
-$(foreach i,$(DIST_PROGRAMS),$(eval $(call DIST_rules,$(DIR_BIN)/$(i),$(DIR_DIST_BIN)/$(i))))
+$(foreach i,$(dist_lib),$(eval $(call DIST_rules,$(BUILDDIR)/lib/$(i),$(DESTDIR)/lib/$(i))))
+$(foreach i,$(dist_bin),$(eval $(call DIST_rules,$(BUILDDIR)/bin/$(i),$(DESTDIR)/bin/$(i))))
+$(foreach dir,$(dist_dirs),$(foreach file,$($(dir)_SRCS),$(eval $(call DIST_rules,$(file),$(DESTDIR)/$(dir)/$(file)))))
 
-sinclude $(foreach i,$(PROGRAMS) $(LIBRARIES),$(call SRCS_d,$(i)))
+sinclude $(foreach i,$(bin) $(dist_bin) $(lib) $(dist_lib),$(call SRCS_d,$(i)))
 
 endif
 

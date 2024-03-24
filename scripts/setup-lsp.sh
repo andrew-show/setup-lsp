@@ -5,9 +5,9 @@
 function abs_path()
 {
     if [[ "$1" =~ / ]]; then
-        realpath -m -s $1
+        realpath -L -m -s $1
     else
-        realpath -m -s $2/$1
+        realpath -L -m -s $2/$1
     fi
 }
 
@@ -73,18 +73,30 @@ if [ "X$1" == "X" ]; then
     exit 1
 fi
 
+PATH_ARGS_PROBE=$(which args-probe)
+if [ "X$PATH_ARGS_PROBE" == "X" ]; then
+    echo "Can't find args-probe in PATH" > /dev/stderr
+    exit 1
+fi
+
+PATH_LIBARGS_ADVISE=$(dirname $PATH_ARGS_PROBE)/../lib/libargs-advise.so
+if [ ! -f "$PATH_LIBARGS_ADVISE" ]; then
+    echo "Can't find libargs-advise.so in $(dirname $PATH_LIBARGS_ADVISE)" > /dev/stderr
+    exit 1
+fi
+
 echo '[' > $PWD/compile_commands.json
 
 # setup unix domain socket path for args-probe
 export ARGS_PROBE=/tmp/setup-lsp-$$
 
 # start args-probe to probe command line arguments
-args-probe $ARGS_PROBE > >(make_database) &
+$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database) &
 
 ARGS_PROBE_PID=$!
 
 # setup preload shared library to probe and advise command line arguments.
-export LD_PRELOAD=libargs-advise.so
+export LD_PRELOAD=$PATH_LIBARGS_ADVISE
 
 $@
 
