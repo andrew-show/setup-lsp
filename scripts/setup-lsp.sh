@@ -13,63 +13,119 @@ function abs_path()
 
 function make_database()
 {
+    database=$1
+    base=$(mktemp -d)
+
+    echo '[' > $database
+
+    local line
     while read line; do
         set -- $line
 
         pwd=$1
         shift
 
-        if [[ "$1" =~ (^|/)(gcc|g\+\+|clang|clang\+\+)$ ]]; then
+        if [[ "$1" =~ (^|/)(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$ ]]; then
             args=$1
             shift
 
             objs=
             srcs=
             while [ $# -ne 0 ]; do
-                if [[ "$1" =~ ^-I ]]; then
-                    if [[ "$1" == "-I" ]]; then
+                case "$1" in
+                    -I)
                         shift
-                        path="$1"
-                    else
-                        path=${1#-I}
-                    fi
-
-                    args="$args -I $(abs_path $path $pwd)"
-		        elif [[ "$1" == "-include" ]]; then
-		            shift
-		            args="$args -include $(abs_path $1 $pwd)"
-                elif [[ "$1" == "-o" ]]; then
-                    shift 
-                    args="$args -o $1"
-                    objs="$objs $1"
-                elif [[ "$1" =~ \.(c|cc|cxx|cpp)$ ]]; then 
-                    srcs="$srcs $1"
-                else
-                    args="$args $1"
-                fi
+                        args="$args -I$1"
+                        ;;
+                    -I*)
+                        args="$args $1"
+                        ;;
+                    -include)
+		                shift
+		                args="$args -include $1"
+                        ;;
+                    -o)
+                        shift 
+                        objs="$objs $1"
+                        ;;
+                    *.c|*.cc|*.cxx|*.cpp)
+                        srcs="$srcs $1"
+                        ;;
+                    -MF)
+                        shift
+                        ;;
+                    -c|-M|-MM|-MD)
+                        ;;
+                    *)
+                        args="$args $1"
+                        ;;
+                esac
 
                 shift
             done
 
             if [ "X$objs" != "X" ]; then
-                for i in $srcs; do
-                    file=$(abs_path $i $pwd)
-                    command=$(echo $args $file | sed 's/\"/\\"/g')
-                    cat >> $PWD/compile_commands.json <<EOF
-{
-    "directory": "$PWD",
-    "file": "$file",
+                for src in $srcs; do
+                    obj=$(echo $src | sed 's%\.[^\.]*$%%').o
+                    command=$(echo $args -o $obj -c $src | sed 's/\"/\\"/g')
+                    cat >> $database <<EOF
+  {
+    "directory": "$pwd",
+    "file": "$src",
     "command": "$command"
-},
+  },
 EOF
+                    cd $pwd
+
+                    $args -MM $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read head; do
+                        path=$base/$(realpath -L -m -s $head)
+                        if [ ! -f $path ]; then
+                            mkdir -p $(dirname $path)
+                            touch $path
+                            cat >> $database <<EOF
+  {
+    "directory": "$pwd",
+    "file": "$head",
+    "command": "$command"
+  },
+EOF
+                        fi
+                    done
                 done
             fi
         fi
     done
+
+    rm -rf $base
+
+    sed -i '$ s/,$//' $database
+    echo ']' >> $database
 }
 
 if [ "X$1" == "X" ]; then
-    echo "Usage: setup-lsp.sh <Command to build software>" > /dev/stderr
+    echo "Usage: setup-lsp.sh [Optiions] <Command to build software>" > /dev/stderr
+    echo "  -C <dir>     Specify the working directory for build command"
+    exit 1
+fi
+
+DIR=$PWD
+BUILD_DIR=$PWD
+
+while [ -n $1 ]; do
+    case "$1" in
+        -C)
+            shift
+            BUILD_DIR=$1
+            ;;
+        *)
+            break
+            ;;
+    esac
+    shift
+done
+
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "Build directory $BUILD_DIR doesn't exist" > /dev/stderr
     exit 1
 fi
 
@@ -85,26 +141,32 @@ if [ ! -f "$PATH_LIBARGS_ADVISE" ]; then
     exit 1
 fi
 
-echo '[' > $PWD/compile_commands.json
-
 # setup unix domain socket path for args-probe
 export ARGS_PROBE=/tmp/setup-lsp-$$
 
 # start args-probe to probe command line arguments
-$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database) &
+$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $DIR/compile_commands.json) &
 
 ARGS_PROBE_PID=$!
 
 # setup preload shared library to probe and advise command line arguments.
 export LD_PRELOAD=$PATH_LIBARGS_ADVISE
 
+# Execute build command
+cd $BUILD_DIR
 $@
 
-# wait 1 seconds to make sure every thing is done
+cd $DIR
+
+# wait 3 seconds to make sure every thing is done
 sleep 1
 
 # kill args-probe process
 kill -2 $ARGS_PROBE_PID
 
-sed -i '$ s/,$//' $PWD/compile_commands.json
-echo ']' >> $PWD/compile_commands.json
+while true; do
+    tail -1 $DIR/compile_commands.json | grep '\]' > /dev/null
+    if [ $? -eq 0 ]; then
+        break
+    fi
+done
