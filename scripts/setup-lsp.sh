@@ -25,10 +25,13 @@ function make_database()
         pwd=$1
         shift
 
+        executable=$1
+        shift
+
         if [[ "$1" =~ (^|/)(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$ ]]; then
-            args=$1
             shift
 
+            args=
             objs=
             srcs=
             while [ $# -ne 0 ]; do
@@ -67,7 +70,7 @@ function make_database()
             if [ "X$objs" != "X" ]; then
                 for src in $srcs; do
                     obj=$(echo $src | sed 's%\.[^\.]*$%%').o
-                    command=$(echo $args -o $obj -c $src | sed 's/\"/\\"/g')
+                    command=$(echo $executable $args -o $obj -c $src | sed 's/\"/\\"/g')
                     cat >> $database <<EOF
   {
     "directory": "$pwd",
@@ -77,19 +80,21 @@ function make_database()
 EOF
                     cd $pwd
 
-                    $args -MM $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read head; do
-                        path=$base/$(realpath -L -m -s $head)
-                        if [ ! -f $path ]; then
-                            mkdir -p $(dirname $path)
-                            touch $path
-                            cat >> $database <<EOF
+                    $executable $args -MM $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read heads; do
+                        for head in $heads; do
+                            path=$base/$(realpath -L -m -s $head)
+                            if [ ! -f $path ]; then
+                                mkdir -p $(dirname $path)
+                                touch $path
+                                cat >> $database <<EOF
   {
     "directory": "$pwd",
     "file": "$head",
     "command": "$command"
   },
 EOF
-                        fi
+                            fi
+                        done
                     done
                 done
             fi

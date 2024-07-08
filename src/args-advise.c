@@ -29,22 +29,33 @@ static ssize_t advise(const char *buf, size_t size)
 
 static void __attribute__((constructor)) init()
 {
-    int fd = open("/proc/self/cmdline", O_RDONLY);
-    if (fd >= 0) {
-        char buf[4096];
-        char *pwd = getenv("PWD");
-        size_t size = strlen(pwd) + 1;
-        if (size < sizeof(buf)) {
-            strcpy(buf, pwd);
-            ssize_t nbytes = read(fd, buf + size, sizeof(buf) - size);
-            if (nbytes > 0) {
-                size += nbytes;
-                if (size < sizeof(buf)) {
-                    advise(buf, size);
-                }
-            }
-        }
+    char buf[4096];
 
-        close(fd);
-    }
+    char *pwd = getenv("PWD");
+    ssize_t nbytes = strlen(pwd) + 1;
+    if (nbytes >= sizeof(buf))
+        return;
+
+    strcpy(buf, pwd);
+    size_t size = nbytes;
+
+    nbytes = readlink("/proc/self/exe", buf + size, sizeof(buf) - size - 1);
+    if (nbytes <= 0)
+        return;
+
+    size += nbytes;
+    buf[size ++] = '\0';
+
+    int fd = open("/proc/self/cmdline", O_RDONLY);
+    if (fd < 0)
+        return;
+
+    nbytes = read(fd, buf + size, sizeof(buf) - size);
+    close(fd);
+
+    if (nbytes <= 0)
+        return;
+
+    size += nbytes;
+    advise(buf, size);
 }
