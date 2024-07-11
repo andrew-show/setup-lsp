@@ -57,6 +57,12 @@ function make_database()
                     -MF)
                         shift
                         ;;
+                    -Wp,-MD,*)
+                        shift
+                        ;;
+                    -Wp,-MMD,*)
+                        shift
+                        ;;
                     -c|-M|-MM|-MD)
                         ;;
                     *)
@@ -115,12 +121,17 @@ fi
 
 DIR=$PWD
 BUILD_DIR=$PWD
+OUTPUT=$DIR/compile_commands.json
 
 while [ -n $1 ]; do
     case "$1" in
         -C)
             shift
             BUILD_DIR=$1
+            ;;
+        -o)
+            shift
+            OUTPUT=$(realpath -m -s $1)
             ;;
         *)
             break
@@ -150,7 +161,7 @@ fi
 export ARGS_PROBE=/tmp/setup-lsp-$$
 
 # start args-probe to probe command line arguments
-$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $DIR/compile_commands.json) &
+$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $OUTPUT) &
 
 ARGS_PROBE_PID=$!
 
@@ -170,7 +181,7 @@ sleep 1
 kill -2 $ARGS_PROBE_PID
 
 while true; do
-    tail -1 $DIR/compile_commands.json | grep '\]' > /dev/null
+    tail -1 $OUTPUT | grep '\]' > /dev/null
     if [ $? -eq 0 ]; then
         break
     fi
