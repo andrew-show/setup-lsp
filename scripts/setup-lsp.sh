@@ -54,7 +54,7 @@ function make_database()
                     *.c|*.cc|*.cxx|*.cpp)
                         srcs="$srcs $1"
                         ;;
-                    -MF)
+                    -MF|-MT)
                         shift
                         ;;
                     -Wp,-MD,*)
@@ -63,7 +63,7 @@ function make_database()
                     -Wp,-MMD,*)
                         shift
                         ;;
-                    -c|-M|-MM|-MD)
+                    -c|-M|-MM|-MD|-MMD)
                         ;;
                     *)
                         args="$args $1"
