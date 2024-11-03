@@ -31,15 +31,22 @@ static void __attribute__((constructor)) init()
 {
     char buf[4096];
 
+    size_t size;
     char *pwd = getenv("PWD");
-    ssize_t nbytes = strlen(pwd) + 1;
-    if (nbytes >= sizeof(buf))
-        return;
+    if (pwd) {
+        ssize_t nbytes = strlen(pwd) + 1;
+        if (nbytes >= sizeof(buf))
+            return;
 
-    strcpy(buf, pwd);
-    size_t size = nbytes;
+        strcpy(buf, pwd);
+        size = nbytes;
+    } else {
+        if (!getcwd(buf, sizeof(buf)))
+            return;
+        size = strlen(buf) + 1;
+    }
 
-    nbytes = readlink("/proc/self/exe", buf + size, sizeof(buf) - size - 1);
+    ssize_t nbytes = readlink("/proc/self/exe", buf + size, sizeof(buf) - size - 1);
     if (nbytes <= 0)
         return;
 
