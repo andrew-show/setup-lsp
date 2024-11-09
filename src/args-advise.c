@@ -34,12 +34,11 @@ static void __attribute__((constructor)) init()
     size_t size;
     char *pwd = getenv("PWD");
     if (pwd) {
-        ssize_t nbytes = strlen(pwd) + 1;
-        if (nbytes >= sizeof(buf))
+        size = strlen(pwd) + 1;
+        if (size >= sizeof(buf))
             return;
 
         strcpy(buf, pwd);
-        size = nbytes;
     } else {
         if (!getcwd(buf, sizeof(buf)))
             return;

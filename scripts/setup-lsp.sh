@@ -14,9 +14,16 @@ function abs_path()
 function make_database()
 {
     database=$1
+    append=$2
+    prefix=$3
     base=$(mktemp -d)
 
-    echo '[' > $database
+    if [ -f $database -a $append == "yes" ]; then
+        sed -i ':a /^.*\][\n \t]*/ { $ s/^\(.*\)\]/\1/; N; ba }' $database
+        sed -i ':a /^.*}[\n \t]*/ { $ s/^\(.*\)}[\n \t]*/\1},/; N; ba }' $database
+    else
+        echo '[' > $database
+    fi
 
     local line
     while read line; do
@@ -28,7 +35,7 @@ function make_database()
         executable=$1
         shift
 
-        if [[ "$1" =~ (^|/)(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$ ]]; then
+        if [[ "$1" =~ (^|/)${prefix}(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$ ]]; then
             shift
 
             args=
@@ -109,19 +116,30 @@ EOF
 
     rm -rf $base
 
-    sed -i '$ s/,$//' $database
+    sed -i ':a /^.*},[\n \t]*/ { $ s/^\(.*\)},[\n \t]*/\1}/; N; ba }' $database
     echo ']' >> $database
 }
 
-if [ "X$1" == "X" ]; then
+function usage()
+{
     echo "Usage: setup-lsp.sh [Optiions] <Command to build software>" > /dev/stderr
     echo "  -C <dir>     Specify the working directory for build command"
+    echo "  -o <path>    Path to compile database, the default is ./compile_commands.json"
+    echo "  -a           Append new content to existing file"
+    echo "  -p           Specify the cross compile prefix for compiler and linker"
+    echo "  -h|--help    Display the message"
     exit 1
+}
+
+if [ "X$1" == "X" ]; then
+    usage
 fi
 
 DIR=$PWD
 BUILD_DIR=$PWD
 OUTPUT=$DIR/compile_commands.json
+APPEND=no
+PREFIX=
 
 while [ -n $1 ]; do
     case "$1" in
@@ -132,6 +150,16 @@ while [ -n $1 ]; do
         -o)
             shift
             OUTPUT=$(realpath -m -s $1)
+            ;;
+        -a)
+            APPEND=yes
+            ;;
+        -p)
+            shift
+            PREFIX=$1
+            ;;
+        -h|--help)
+            usage
             ;;
         *)
             break
@@ -161,7 +189,7 @@ fi
 export ARGS_PROBE=/tmp/setup-lsp-$$
 
 # start args-probe to probe command line arguments
-$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $OUTPUT) &
+$PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $OUTPUT $APPEND $PREFIX) &
 
 ARGS_PROBE_PID=$!
 
@@ -175,14 +203,7 @@ $@
 cd $DIR
 
 # wait 3 seconds to make sure every thing is done
-sleep 1
+sleep 2
 
 # kill args-probe process
 kill -2 $ARGS_PROBE_PID
-
-while true; do
-    tail -1 $OUTPUT | grep '\]' > /dev/null
-    if [ $? -eq 0 ]; then
-        break
-    fi
-done
