@@ -70,32 +70,34 @@ function make_database()
 
             if [ "X$targets" != "X" ]; then
                 for src in $srcs; do
-                    command=$(echo $executable $args | sed 's/\"/\\"/g')
-                    cat >> $database <<EOF
+                    if [ -f $src ]; then
+                        command=$(echo $executable $args | sed 's/\"/\\"/g')
+                        cat >> $database <<EOF
   {
     "directory": "$pwd",
     "file": "$src",
     "command": "$command"
   },
 EOF
-                    cd $pwd
+                        cd $pwd
 
-                    $executable $preprocessor -MM -E $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read heads; do
-                        for head in $heads; do
-                            path=$base/$(realpath -L -m -s $head)
-                            if [ ! -f $path ]; then
-                                mkdir -p $(dirname $path)
-                                touch $path
-                                cat >> $database <<EOF
+                        $executable $preprocessor -MM -E $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read heads; do
+                            for head in $heads; do
+                                path=$base/$(realpath -L -m -s $head)
+                                if [ ! -f $path ]; then
+                                    mkdir -p $(dirname $path)
+                                    touch $path
+                                    cat >> $database <<EOF
   {
     "directory": "$pwd",
     "file": "$head",
     "command": "$command"
   },
 EOF
-                            fi
+                                fi
+                            done
                         done
-                    done
+                    fi
                 done
             fi
         fi
