@@ -38,52 +38,39 @@ function make_database()
         if [[ "$1" =~ (^|/)${prefix}(gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$ ]]; then
             shift
 
-            args=
-            objs=
+            args=$@
+            preprocessor=
             srcs=
+            targets=
             while [ $# -ne 0 ]; do
                 case "$1" in
-                    -I)
+                    -I|-include|-iquote|-isystem|-idirafter|-iprefix|-iwithprefix|-iwithprefixbefore|-isysroot|-imultilib|-D|-U|-imacros|-Xpreprocessor)
+                        preprocessor="$preprocessor $1 $2"
                         shift
-                        args="$args -I$1"
                         ;;
-                    -I*)
-                        args="$args $1"
+                    -I*|-include*|-iquote*|-isystem*|-idirafter*|-iprefix*|-iwithprefix*|-iwithprefixbefore*|-isysroot*|-imultilib*|--sysroot=*|-nostdinc|-nostdinc++|-D*|-U*|-undef|-Wp,*|-imacros*|-no-integrated-cpp|-pthread|-std=*)
+                        preprocessor="$preprocessor $1"
                         ;;
-                    -include)
-		                shift
-		                args="$args -include $1"
+                    -main-file-name)
+                        shift
                         ;;
                     -o)
                         shift 
-                        objs="$objs $1"
+                        targets="$targets $1"
                         ;;
                     *.c|*.cc|*.cxx|*.cpp)
                         srcs="$srcs $1"
                         ;;
-                    -MF|-MT)
-                        shift
-                        ;;
-                    -Wp,-MD,*)
-                        shift
-                        ;;
-                    -Wp,-MMD,*)
-                        shift
-                        ;;
-                    -c|-M|-MM|-MD|-MMD)
-                        ;;
                     *)
-                        args="$args $1"
                         ;;
                 esac
 
                 shift
             done
 
-            if [ "X$objs" != "X" ]; then
+            if [ "X$targets" != "X" ]; then
                 for src in $srcs; do
-                    obj=$(echo $src | sed 's%\.[^\.]*$%%').o
-                    command=$(echo $executable $args -o $obj -c $src | sed 's/\"/\\"/g')
+                    command=$(echo $executable $args | sed 's/\"/\\"/g')
                     cat >> $database <<EOF
   {
     "directory": "$pwd",
@@ -93,7 +80,7 @@ function make_database()
 EOF
                     cd $pwd
 
-                    $executable $args -MM $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read heads; do
+                    $executable $preprocessor -MM -E $src | sed -e 's/^[^:]*: [^ ]*//' -e 's/ \\$//' | while read heads; do
                         for head in $heads; do
                             path=$base/$(realpath -L -m -s $head)
                             if [ ! -f $path ]; then
@@ -193,6 +180,8 @@ $PATH_ARGS_PROBE $ARGS_PROBE > >(make_database $OUTPUT $APPEND $PREFIX) &
 
 ARGS_PROBE_PID=$!
 
+sleep 1
+
 # setup preload shared library to probe and advise command line arguments.
 export LD_PRELOAD=$PATH_LIBARGS_ADVISE
 
@@ -203,7 +192,7 @@ $@
 cd $DIR
 
 # wait 3 seconds to make sure every thing is done
-sleep 2
+sleep 1
 
 # kill args-probe process
 kill -2 $ARGS_PROBE_PID

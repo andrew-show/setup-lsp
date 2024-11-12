@@ -358,12 +358,14 @@ build: $(SUBDIRS) $(BUILD_ALL)
 
 .PHONY: post-build
 
+.PHONY: FORCE
+
 #=============================================================================
 # template to define statistics library rules
 # $1: The source file name
 # $2: The destination file name
 define DIST_rules
-$(2): $(1)
+$(2): $(1) FORCE
 	@set -e; mkdir -p $$(@D); \
 	echo distributing $(2); \
 	cp -d $(1) $(2)

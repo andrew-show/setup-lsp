@@ -73,12 +73,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    while (!g_sig_exit) {
+    for ( ; ; ) {
         struct pollfd fds;
         fds.fd = fd;
         fds.events = POLLIN;
         fds.revents = 0;
-        int nfds = poll(&fds, 1, 20);
+        int nfds = poll(&fds, 1, 1000);
         if (nfds >= 1) {
             char buf[4096];
             int size = recv(fd, buf, sizeof(buf), 0);
@@ -94,6 +94,8 @@ int main(int argc, char *argv[])
 
                 putchar('\n');
             }
+        } else if (g_sig_exit) {
+            break;
         }
     }
 
