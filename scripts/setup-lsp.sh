@@ -58,7 +58,7 @@ function make_database()
                         shift 
                         targets="$targets $1"
                         ;;
-                    *.c|*.cc|*.cxx|*.cpp)
+                    *.c|*.cc|*.cxx|*.cpp|*.S)
                         srcs="$srcs $1"
                         ;;
                     *)
