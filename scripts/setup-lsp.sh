@@ -41,7 +41,7 @@ function make_database()
             args=$@
             preprocessor=
             srcs=
-            targets=
+            discard=no
             while [ $# -ne 0 ]; do
                 case "$1" in
                     -I|-include|-iquote|-isystem|-idirafter|-iprefix|-iwithprefix|-iwithprefixbefore|-isysroot|-imultilib|-D|-U|-imacros|-Xpreprocessor)
@@ -54,9 +54,11 @@ function make_database()
                     -main-file-name)
                         shift
                         ;;
+                    -E)
+                        discard=yes
+                        ;;
                     -o)
                         shift 
-                        targets="$targets $1"
                         ;;
                     *.c|*.cc|*.cxx|*.cpp|*.S)
                         srcs="$srcs $1"
@@ -68,7 +70,7 @@ function make_database()
                 shift
             done
 
-            if [ "X$targets" != "X" ]; then
+            if [ "X$discard" != "Xyes" ]; then
                 for src in $srcs; do
                     cd $pwd
                     path=$base/$(realpath -L -m -s $src)
